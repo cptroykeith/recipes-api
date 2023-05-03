@@ -25,6 +25,9 @@ class Categories(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
     desicrption = db.Column(db.String(80))
+    user_id = db.Column(db.Integer)
+
+
 
 def token_required(f):
     @wraps(f)
@@ -37,8 +40,8 @@ def token_required(f):
         if not token:
             return jsonify({'message': 'Token is missing!'}), 401
         
-        try:
-            data = jwt.decode(token, app.config['SECRET_KEY'])
+        try: 
+            data = jwt.decode(token, str(app.config['SECRET_KEY']), algorithms =['HS256'])
             current_user =User.query.filter_by(public_id=data['public_id']).first()
         except:
             return jsonify({'message' : 'Token is invalid'}), 401
@@ -70,7 +73,7 @@ def get_all_users(current_user):
 
 @app.route('/user/<public_id>', methods=['GET'])
 @token_required
-def get_one_user(current_user, public_id):
+def get_one_user(current_user,public_id):
 
     if not current_user.admin:
         return jsonify({'message' : 'Cannot perform that function'})
@@ -150,11 +153,37 @@ def login():
         return make_response('Could not verify', 401, {'www-Authenticate' : 'Basic realm="Login required!'})
     
     if check_password_hash(user.password, auth.password):
-        token = jwt.encode({'public_id' : user.public_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        token = jwt.encode({'public_id' : user.public_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, str(app.config['SECRET_KEY']), algorithm ='HS256')
 
         return jsonify({'token' : token})
     
     return make_response('Could not verify', 401, {'www-Authenticate' : 'Basic realm="Login required!'})
+
+@app.route('/category', methods=['GET'])
+@token_required
+def get_all_category(current_user):
+    return ''
+
+@app.route('/categories/<category_id>', methods=['GET'])
+@token_required
+def get_one_category(current_user,category_id):
+    return ''
+
+@app.route('/categories', methods=['POST'])
+@token_required
+def create_category(current_user):
+    data = request.get_json()
+
+    new_category = Categories(name=data['name'], desicrption=data['desicrption'], user_id=current_user.id)
+    db.session.add(new_category)
+    db.session.commit()
+
+    return jsonify({'message' : 'Category created!'})
+
+@app.route('/category/<category_id>', methods=['DELETE'])
+@token_required
+def delete_category(current_user,category_id):
+    return ''
 
 if __name__ == '__main__':
     app.run(debug=False)
