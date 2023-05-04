@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
@@ -10,9 +11,10 @@ app = Flask(__name__)
 
 app.config['SECRET_KEY'] = 'thisissecret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////Users/royw/Documents/projects/recipes-api/database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-db.init_app(app)
+migrate = Migrate(app, db)
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -24,7 +26,7 @@ class User(db.Model):
 class Categories(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
-    desicrption = db.Column(db.String(80))
+    description = db.Column(db.String(80))
     user_id = db.Column(db.Integer)
 
 
@@ -159,31 +161,76 @@ def login():
     
     return make_response('Could not verify', 401, {'www-Authenticate' : 'Basic realm="Login required!'})
 
-@app.route('/category', methods=['GET'])
+@app.route('/categories', methods=['GET'])
 @token_required
 def get_all_category(current_user):
-    return ''
+    category = Categories.query.filter_by(user_id=current_user.id).all()
+
+    output = []
+
+    for category in category:
+        category_data = {}
+        category_data['id'] = category.id
+        category_data['name'] = category.name
+        category_data['description'] = category.description
+        output.append(category_data)
+
+    return jsonify({'categories' : output})
 
 @app.route('/categories/<category_id>', methods=['GET'])
 @token_required
 def get_one_category(current_user,category_id):
-    return ''
+    category = Categories.query.filter_by(id=category_id,user_id=current_user.id).first()
+    if not category:
+        return jsonify({'message' : 'No category found!'})
+    
+    category_data = {}
+    category_data['id'] = category.id
+    category_data['name'] = category.name
+    category_data['description'] = category.description
+
+    return jsonify(category_data)
 
 @app.route('/categories', methods=['POST'])
 @token_required
 def create_category(current_user):
     data = request.get_json()
 
-    new_category = Categories(name=data['name'], desicrption=data['desicrption'], user_id=current_user.id)
+    new_category = Categories(name=data['name'], description=data['description'], user_id=current_user.id)
     db.session.add(new_category)
     db.session.commit()
 
     return jsonify({'message' : 'Category created!'})
 
-@app.route('/category/<category_id>', methods=['DELETE'])
+@app.route('/categories/<category_id>', methods=['PUT'])
+@token_required
+def update_category(current_user, category_id):
+    category = Categories.query.filter_by(id=category_id,user_id=current_user.id).first()
+    if not category:
+        return jsonify({'message' : 'No category found!'})
+    
+    data = request.get_json()
+
+    if 'name' in data:
+        category.name = data['name']
+    if 'description' in data:
+        category.description = data['description']
+
+    db.session.commit()
+
+    return jsonify({'message' : 'Category updated!'})
+
+@app.route('/categories/<category_id>', methods=['DELETE'])
 @token_required
 def delete_category(current_user,category_id):
-    return ''
+    category = Categories.query.filter_by(id=category_id,user_id=current_user.id).first()
+    if not category:
+        return jsonify({'message' : 'No category found!'})
+    
+    db.session.delete(category)
+    db.session.commit()
+
+    return jsonify({'message' : 'category item deleted!'})
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
